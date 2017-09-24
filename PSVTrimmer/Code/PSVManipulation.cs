@@ -59,25 +59,20 @@ namespace PSVTrimmer
             }
         }
 
-        public void Trim(string inputpath, string outputpath)
+        public void Trim(string inputpath)
         {
+            long blockNumber = 0;
+
             using (var file = MemoryMappedFile.CreateFromFile(inputpath))
             {
                 if (!ValidateHeader(file, inputpath))
                 {
                     return;
                 }
-            }
 
-            Log("Copying to output file...");
-            // Need an async solution here with progress bar
-            //File.Copy(inputpath, outputpath);
+                var fileInfo = new FileInfo(inputpath);
+                blockNumber = fileInfo.Length / 512;
 
-            var fileInfo = new FileInfo(outputpath);
-            long blockNumber = fileInfo.Length / 512;
-
-            using (var file = MemoryMappedFile.CreateFromFile(outputpath))
-            {
                 bool blockIsNull = true;
 
                 while (blockIsNull)
@@ -100,18 +95,15 @@ namespace PSVTrimmer
 
                 blockNumber++;
                 Log("End of image data found at block number " + blockNumber.ToString() + ".");
+
+                Log("Setting trimmed flag.");
+                SetTrimmedFlag(file);
             }
 
-            using (var stream = new FileStream(outputpath, FileMode.Open))
+            using (var stream = new FileStream(inputpath, FileMode.Open))
             {
                 Log("Truncating file to " + (blockNumber * BLOCK_SIZE).ToString() + " bytes.");
                 stream.SetLength(blockNumber * BLOCK_SIZE);
-            }
-
-            using (var file = MemoryMappedFile.CreateFromFile(outputpath))
-            {
-                Log("Setting trimmed flag.");
-                SetTrimmedFlag(file);
             }
 
             Log("Trimming complete.");

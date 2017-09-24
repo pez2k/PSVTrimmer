@@ -18,27 +18,15 @@ namespace PSVTrimmer
             fdInput.ShowDialog();
         }
 
-        private void btnBrowseOutput_Click(object sender, EventArgs e)
-        {
-            fdInput.FileOk += outputFileSelected;
-            fdInput.ShowDialog();
-        }
-
         private void inputFileSelected(object sender, CancelEventArgs e)
         {
             txtInput.Text = fdInput.FileName;
             fdInput.FileOk -= inputFileSelected;
         }
 
-        private void outputFileSelected(object sender, CancelEventArgs e)
-        {
-            txtOutput.Text = fdInput.FileName;
-            fdInput.FileOk -= outputFileSelected;
-        }
-
         private void btnTrim_Click(object sender, EventArgs e)
         {
-            Trim(txtInput.Text, txtOutput.Text);
+            Trim(txtInput.Text);
         }
     }
 }
