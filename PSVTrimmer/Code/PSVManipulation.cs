@@ -46,14 +46,75 @@ namespace PSVTrimmer
             }
         }
 
-        public void Trim(string filepath)
+        public void SetTrimmedFlag(MemoryMappedFile file)
         {
-            var file = MemoryMappedFile.CreateFromFile(filepath);
-
-            if (!ValidateHeader(file, filepath))
+            // Assume the whole useful part of the header is in one block - likely is for v1
+            using (MemoryMappedViewStream header = file.CreateViewStream(0, BLOCK_SIZE))
             {
-                return;
+                psv_file_header_v1 headerStruct = ReadStructure<psv_file_header_v1>(header);
+                headerStruct.flags |= FLAG_TRIMMED;
+
+                header.Position = 0;
+                WriteStructure(headerStruct, header);
             }
+        }
+
+        public void Trim(string inputpath, string outputpath)
+        {
+            using (var file = MemoryMappedFile.CreateFromFile(inputpath))
+            {
+                if (!ValidateHeader(file, inputpath))
+                {
+                    return;
+                }
+            }
+
+            Log("Copying to output file...");
+            // Need an async solution here with progress bar
+            //File.Copy(inputpath, outputpath);
+
+            var fileInfo = new FileInfo(outputpath);
+            long blockNumber = fileInfo.Length / 512;
+
+            using (var file = MemoryMappedFile.CreateFromFile(outputpath))
+            {
+                bool blockIsNull = true;
+
+                while (blockIsNull)
+                {
+                    using (MemoryMappedViewStream blockData = file.CreateViewStream((--blockNumber) * 512, BLOCK_SIZE))
+                    {
+                        byte[] blockBytes = new byte[BLOCK_SIZE];
+                        blockData.Read(blockBytes, 0, (int)BLOCK_SIZE);
+
+                        foreach (byte b in blockBytes)
+                        {
+                            if (b != 0x00)
+                            {
+                                blockIsNull = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                blockNumber++;
+                Log("End of image data found at block number " + blockNumber.ToString() + ".");
+            }
+
+            using (var stream = new FileStream(outputpath, FileMode.Open))
+            {
+                Log("Truncating file to " + (blockNumber * BLOCK_SIZE).ToString() + " bytes.");
+                stream.SetLength(blockNumber * BLOCK_SIZE);
+            }
+
+            using (var file = MemoryMappedFile.CreateFromFile(outputpath))
+            {
+                Log("Setting trimmed flag.");
+                SetTrimmedFlag(file);
+            }
+
+            Log("Trimming complete.");
         }
     }
 }
